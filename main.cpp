@@ -1,46 +1,20 @@
 /*
- * Viraj Bhalala
- * Professor Ryan Gerard
- * CS280
- *main.cpp
+ Viraj Bhalala
+ CS 280 - 003
+ * main.cpp
  *
  */
 
 
-
- /*
- grammer 
-Html ::= TEXT
-        | TEXT Html
-        | Markup
-        | Markup Html
-  
-Markup ::= Stag Html Etag
-        | Stag Etag
-        | EmptyElement
-  
-Stag ::= LANGLE ID Attrs RANGLE
-        |LANGLE ID RANGLE
-Etag ::= LANGLE SLASH ID RANGLE
-
-EmptyElement ::= LANGLE ID SLASH RANGLE
-
-                | LANGLE ID Attrs SLASH RANGLE
-Attrs ::= Attr
-        | Attr Attrs
-  
-Attr ::= ID EQ QSTRING
-*/
-
-
 #include "tokens.h"
-
 #include "tokens.cpp"
+#include <sstream>
+#include "vector"
 #include <cstring>
 #include <algorithm>
 #include <map>
+#include <math.h>
 
-// THIS FUNCTION FOR ERROR HANDLING
 int errorCount = 0;
 
 void
@@ -49,9 +23,7 @@ parseError(string msg) {
     errorCount++;
 }
 
-// C and C++ let you do a "typedef"
-// it is really a way of defining an identifier for a type,
-// not an actual definition
+
 typedef map<string,string> AMap;
 
 // class for tree nodes
@@ -62,52 +34,143 @@ class PTree {
     
     string	text;
     
-    enum { TextNode, MarkupNode, ListNode } nodeType;
+    enum { TextNode, StagNode, EtagNode, EmptyElementNode, MarkupNode, ListNode } nodeType;
     
     PTree *child;
     PTree *child2;
 public:
     // PTREE CONSTRUCTORS
-    
-    // this for a start-end tag pair
-    PTree(string sid, string eid, AMap attrs, PTree *ch) {
+    PTree(string sid, string eid, AMap attrs) {
         this->openID = sid;
         this->closeID = eid;
         this->attrs = attrs;
-        nodeType = MarkupNode;
-        child = ch;
-        child2 = 0;
-    }
-    
-    // this for an EmptyElement
-    PTree(string id, AMap attrs) {
-        this->openID = this->closeID = id;
-        this->attrs = attrs;
-        nodeType = MarkupNode;
+        nodeType = StagNode;
         child = child2 = 0;
     }
     
-    // this for text
+    PTree(string id, AMap attrs) {
+        this->openID = this->closeID = id;
+        this->attrs = attrs;
+        nodeType = EmptyElementNode;
+        child = child2 = 0;
+    }
+    
+    PTree(string id, PTree *ch) {
+        this->openID = this->closeID = id;
+        this->attrs = attrs;
+        nodeType = EtagNode;
+        child = child2 = 0;
+    }
+    
     PTree(string t) {
         text = t;
         nodeType = TextNode;
         child = child2 = 0;
     }
     
-    // this for a list of parsed items
-    PTree(PTree *left, PTree *right) {
+    PTree(PTree *left, PTree *right = 0) {
         nodeType = ListNode;
         child = left;
         child2 = right;
     }
     
-    bool isText() { return nodeType == TextNode; }
+    PTree(PTree *start, PTree *body, PTree *end) {
+        openID = start->openID;
+        attrs = start->attrs;
+        if( end )
+            closeID = end->closeID;
+        nodeType = MarkupNode;
+        child = body;
+        child2 = 0;
+        
+        delete start;
+        if( end )
+            delete end;
+    }
+    
+    bool isStag() { return nodeType == StagNode; }
+    bool isEtag() { return nodeType == EtagNode; }
+    bool isEmptyElement() { return nodeType == EmptyElementNode; }
+    bool isMarkup() { return nodeType == MarkupNode; }
+    
+    string getStartTag() { return openID; }
+    string getText() { return text; }
+    
+    // if the right child is actually an etag, pull it out and return it
+    PTree *extractEtag() {
+        if( nodeType == ListNode ) {
+            if( child2 ) {
+                if( child2->isEtag() ) {
+                    PTree *rval = child2;
+                    child2 = 0;
+                    return rval;
+                }
+                else
+                    return child2->extractEtag();
+            }
+        }
+        return 0;
+    }
+    
+    void traverse(int level=0) {
+        indent( level );
+        switch(nodeType) {
+            case MarkupNode:
+                cout << "Markup: begin,end == " << openID << "," << closeID << endl;
+                break;
+                
+            case TextNode:
+                cout << "Text:" << text << ":" << endl;
+                break;
+                
+            case StagNode:
+                cout << "Start tag:" << openID <<endl;
+                printattrs(level);
+                break;
+                
+            case EtagNode:
+                cout << "End tag:" << openID <<endl;
+                break;
+                
+            case EmptyElementNode:
+                cout << "EmptyElement:" << openID << endl;
+                printattrs(level);
+                break;
+                
+            case ListNode:
+                cout << "List:" << endl;
+                break;
+        }
+        if( child ) {
+            indent( level );
+            cout << "child 1:";
+            child->traverse(level+1);
+        }
+        if( child2 ) {
+            indent( level );
+            cout << "child 2:";
+            child2->traverse(level+1);
+        }
+    }
     
     int countLeaves() {
-        if( child )
-            return child->countLeaves() + ( child2 ?  child2->countLeaves() : 0 );
-        else
+        if( child == 0 && child2 == 0 )
             return 1;
+        
+        return (child ? child->countLeaves() : 0)  + (child2 ?  child2->countLeaves() : 0);
+    }
+    
+private:
+    void indent(int n) {
+        for( int i=0; i<n; i++ ) cout << "  ";
+        cout << n << ":";
+    }
+    
+    void printattrs(int n) {
+        for( AMap::iterator it = attrs.begin(); it != attrs.end(); it++ ) {
+            indent( n );
+            cout << " " << it->first <<"=" <<it->second << endl;
+        }
     }
 };
 
@@ -131,159 +194,346 @@ public:
     string	getLexeme()	{ return lexeme; }
     void advanceTok()	{
         tok = Tokens::getToken(intoks, lexeme);
-        if( verbose )
+        if( isVerbose() )
             cout << getToken() << ":" << getLexeme() << ":" << endl;
     }
+    
+    bool isVerbose() { return verbose; }
 };
 
 PTree *Html(TokenEngine& e);
 PTree *Markup(TokenEngine& e);
 PTree *Stag(TokenEngine& e);
-PTree *Etag(TokenEngine& e);
-PTree *EmptyElement(TokenEngine& e);
+PTree *HtmlTag(TokenEngine& e);
 
 int Attrs(TokenEngine& e, AMap& attrs);
+
+PTree *MarkupStarted(TokenEngine& e, PTree *stag);
 
 // Html ::= TEXT
 // | TEXT Html
 // | Markup
 // | Markup Html
 
+
+bool inH= false;
+string HText;
+
 PTree *
 Html(TokenEngine& e)
 {
+    if( e.isVerbose() )
+        cerr << "Entered Html()" << endl;
+    
     if( e.getToken() == Tokens::TEXT ) {
+        if (inH==true) {
+            HText=e.getLexeme();
+            inH=false;
+        }
+        
         PTree *n = new PTree( e.getLexeme() );
         e.advanceTok();
         
-        return new PTree(n, Html(e));
+        if( e.isVerbose() )
+            cerr << "recognized TEXT " << n->getText().substr(0,10) << endl;
+        
+        PTree *htmlfollow = Html(e);
+        
+        if( e.isVerbose() )
+            cerr << "returning list of TEXT " << n->getText().substr(0,10) << " and html" << endl;
+        
+        return new PTree(n, htmlfollow);
     }
     
     // check for markup
     PTree *m = Markup(e);
-    if( m )
-        return new PTree(m, Html(e));
+    if( m ) {
+        if( m->isMarkup() || m->isEmptyElement() ) {
+            if( e.isVerbose() )
+                cerr << "recognized complete Markup, returning list of markup and html" << endl;
+            return new PTree(m, Html(e));
+        }
+        else {
+            if( e.isVerbose() )
+                cerr << "it wasn't markup, returning it" << endl;
+            return m;
+        }
+    }
+    
+    if( e.isVerbose() )
+        cerr << "returning null from html" << endl;
     
     return 0;
 }
 
 // Markup ::= Stag Html Etag
-// | Stag Etag
-// | EmptyElement
-
-// Stag ::= LANGLE ID Attrs RANGLE
-// | LANGLE ID RANGLE
-
-// EmptyElement ::= LANGLE ID SLASH RANGLE
-// | LANGLE ID Attrs SLASH RANGLE
-
-//Etag ::= LANGLE SLASH ID RANGLE
+// 	| Stag Etag
+// 	| EmptyElement
+//
 
 
 
-// Mixing everything Markup becomes:
-// LANGLE ID Attrs RANGLE optionalHtml LANGLE SLASH ID RANGLE
-// LANGLE ID RANGLE optionalHtml LANGLE SLASH ID RANGLE
-// LANGLE ID Attrs SLASH RANGLE
-// LANGLE ID SLASH RANGLE
+map<string,int> tracker;
+map<string,int> counters;
+map<string,int> htag;
 
-int StartCTR =0;
+string endT;
+string startT;
+
 PTree *Markup(TokenEngine& e)
 {
-    string sid;
-    string eid;
+
+    if( e.isVerbose() )
+        cerr << "Entered Markup()" << endl;
+    
+    PTree *firstTag = HtmlTag(e);
+    
+    if( !firstTag ) {
+        return 0;
+    }
+    //empty element then just return it
+    if( firstTag->isEmptyElement() )
+        return firstTag;
+    
+    if( !firstTag->isStag() ) {
+        if( e.isVerbose() )
+            cerr << "first markup element was not an stag" << endl;
+        return firstTag;
+    }
+
+    if( e.isVerbose() ){
+        cerr << "Found stag" << endl;
+    }
+
+    PTree *html = Html(e);
+
+
+    if( e.isVerbose() ){
+        cerr << "Returned from html" << endl;
+    }
+    PTree *etag;
+    
+    if( html->isEtag() ) {
+        etag = html;
+        html = 0;
+    }
+    else {
+        etag = html->extractEtag();
+        
+        if( etag == 0 )
+            etag = HtmlTag(e);
+    }
+    
+    if( e.isVerbose() )
+        cerr << "at end of markup" << endl;
+    
+    if( !etag ) {
+        parseError("Expecting an HTML end tag for start tag " + firstTag->getStartTag());
+        return 0;
+    }
+    else if( etag->isStag() ) {
+        // nested...
+        PTree *nest = MarkupStarted(e, etag);
+        return nest;
+    }
+
+    else
+        return new PTree(firstTag, html, etag);
+
+}
+
+PTree *MarkupStarted(TokenEngine& e, PTree *stag)
+{
+
+    PTree *html = Html(e);
+    
+    
+    if( e.isVerbose() )
+        cerr << "Returned from html in markupstarted" << endl;
+    
+    PTree *etag = HtmlTag(e);
+    
+    if( e.isVerbose() )
+        cerr << "at end of markupstarted" << endl;
+    
+    if( !etag ) {
+        parseError("Expecting an HTML end tag");
+        return 0;
+    }
+    else if( etag->isStag() ) {
+        // nested...
+        PTree *nest = MarkupStarted(e, etag);
+        return nest;
+
+    }
+    else
+        return new PTree(stag, html, etag);
+}
+
+// Stag ::= LANGLE ID Attrs RANGLE
+// 		| LANGLE ID RANGLE
+// EmptyElement ::= LANGLE ID SLASH RANGLE
+// 		| LANGLE ID Attrs SLASH RANGLE
+// Etag ::= LANGLE SLASH ID RANGLE
+//
+
+int level =0;
+int temp=0;
+int Hlevel=0;
+double HNum=0.0;
+vector<string> HTextList;
+vector<int> HLevelList;
+int lowest=1;
+
+PTree *HtmlTag(TokenEngine& e)
+{
+    bool isEmpty = false;
+    bool isEnd = false;
+    string theTag;
     AMap attrs;
     
-
+    if( e.isVerbose() )
+        cerr << "Entering HtmlTag()" << endl;
     
-    if( e.getToken() != Tokens::LANGLE ){
+    string tag;
+    
+    if( e.getToken() != Tokens::LANGLE ) {
+        return 0;
+    }
+    
+    e.advanceTok();
+    if( e.getToken() == Tokens::SLASH ) {
+        isEnd = true;
+        e.advanceTok();
+    }
+    else {
+        if( e.getToken() != Tokens::ID ) {
+            
+            parseError("Expecting identifier after '<'");
+            e.advanceTok();
+            return 0;
+        }
+        //counters
+        startT=e.getLexeme();
+        theTag = e.getLexeme();
+        e.advanceTok();
+        
+        //counter map is H tag counter
+        // tracker map keeps track if Start tag and end tag does not match
+        //in STAG
+        if(e.getToken() != Tokens::SLASH){
+            //counters
+            if (counters.find(startT)!=counters.end()) {
+                counters[startT]+=1;
+            }
+            else{
+                counters[startT]=1;
+            }
+            //tracker
+            if (tracker.find(startT)!=tracker.end()) {
+                tracker[startT]+=1;
+            }
+            else{
+                tracker[startT]=1;
+            }
+            temp++;
+            if (temp>level) {
+                level=temp;
+            }
+            // htag map
+            if (startT.substr(0,1)=="h" || startT.substr(0,1)=="H" ) {
+                inH=true;
+            }
+            
+        }
+
+    }
+    
+    if( isEnd ) {
+        if( e.getToken() != Tokens::ID ) {
+            parseError("Expecting identifier after '/'");
+            e.advanceTok();
+            return 0;
+        }
+        
+        
+        //in ETAG
+        endT = e.getLexeme();
+        if (tracker.find(endT)!=tracker.end()) {
+            tracker[endT]-=1;
+        }
+        else
+            tracker[endT]=-1;
+        
+        temp--;
+        
+        // htag map <TEXT, H levels>
+        // Htext is the current TEXT
+        //HtextList is text array HLevelList is level array
+        //Hnum is number after h in header tag
+        //lowest is lowest Hnum
+        
+        
+        if (endT.substr(0,1)=="h" || endT.substr(0,1)=="H" ) {
+            inH=true;
+            stringstream(endT.substr(1,2)) >> HNum;
+            if (HNum>=lowest) {
+                Hlevel= Hlevel + int(pow(10.0, (6.0-HNum)));
+                HLevelList.push_back(Hlevel);
+                lowest=HNum;
+            }
+            else{
+                lowest=HNum;
+                Hlevel= ((Hlevel/(int(pow(10.0, (6.0-HNum)))))*(int(pow(10.0, (6.0-HNum))))) +int(pow(10.0, (6.0-HNum)));
+                HLevelList.push_back(Hlevel);
+            }
+            
+            
+            //storint TEXT into vector HtextList
+            
+            HTextList.push_back(HText);
+            inH=false;
+        }
+        
+        theTag = e.getLexeme();
+        e.advanceTok();
+    }
+    else {
+        Attrs(e, attrs);
+    }
+    
+    // finish up?
+    if( e.getToken() == Tokens::SLASH ) {
+        isEmpty = true;
+        e.advanceTok();
+    }
+    
+    if( e.getToken() != Tokens::RANGLE ) {
+        parseError("Expecting '>'");
+        e.advanceTok();
         return 0;
     }
     
     e.advanceTok();
     
-    //If slash then I am in ETAG
-    if (e.getToken()==Tokens::SLASH) {
-        e.advanceTok();
-        if (e.getToken()!=Tokens::ID) {
-            parseError("ID expected after SLASH in ETAG");
-            
-        }
-        if (e.getToken() ==Tokens::ID) {
-
-            //save that ID into eid which is ETAG's ID
-            eid=e.getLexeme();
-
-            e.advanceTok();
-            if (e.getToken()!=Tokens::RANGLE) {
-                parseError("RANGLE expected after ID in ETAG");                
-
-            }
-            if (e.getToken()==Tokens::RANGLE) {
-                e.advanceTok();
-                StartCTR -=1;
-                //parseError("Endtang succesfull here");
-                PTree *m = Html(e);
-                return new PTree(sid, eid, attrs, m);
-                
-            }
-        }
-    }
-        else{
-            //ID is always after LANGLE unless it is SLASH which means I am in ETAG
-            if( e.getToken() != Tokens::ID ) {
-                parseError("Missing ID in STAG");
-                
-            }
-            
-            string sid = e.getLexeme();
-            e.advanceTok();
-            int A = Attrs(e, attrs);
-            
-            /*
-            if (A>0) {
-                PTree *m = Html(e);
-                return new PTree(m, Markup(e));
-            }*/
-
-            
-            //SLASH after LANGLE means that I am in the Empty Element
-            if (e.getToken()==Tokens::SLASH) {
-                e.advanceTok();
-                Attrs(e, attrs);
-                
-                if (e.getToken() == Tokens::RANGLE) {
-                    e.advanceTok();
-                    PTree *m = Html(e);
-                    return new PTree(m, Markup(e));                }
-            }
-            else{
+    PTree *tagnode;
+    if( isEnd )
+        tagnode = new PTree(theTag, 0);
+    else if( isEmpty )
+        tagnode = new PTree(theTag, attrs);
+    else
+        tagnode = new PTree(theTag, theTag, attrs);
     
-                if (e.getToken() != Tokens::RANGLE) {
-                    parseError("expecting RANGLE in STAG");
-                    
-                }
-                
-                if (e.getToken() == Tokens::RANGLE) {
-                    StartCTR +=1;
-                    e.advanceTok();
-                    PTree *m = Html(e);
-                    return new PTree(m,  Markup(e));
-                }
-            }
-    }
-        return 0;
+    return tagnode;
 }
 
 // Attrs ::= Attr | Attr Attrs
 // Attr  ::= ID EQ STRING
 //
 // returns count of attrs
-
-int Attrs(TokenEngine& e, AMap& attrs)
+int
+Attrs(TokenEngine& e, AMap& attrs)
 {
-    
-
     // look for an attr
     if( e.getToken() != Tokens::ID )
         return 0;
@@ -319,16 +569,32 @@ usage(char *progname, string msg)
     cerr << " specifying -v makes the program run in verbose mode" << endl;
     cerr << " specifying filename reads from that file; no filename reads standard input" << endl;
 }
+string deleteZeroes(int);
+string deleteZeroes(int x) {
+    while(x%10==0)
+        x /= 10;
+    stringstream ss;
+    ss << x%10;
+    x /= 10;
+    while(x) {
+        ss << "." << x%10;
+        x/=10;
+    }
+    string result = ss.str();
+    reverse(result.begin(), result.end());
+    return result;
+}
 
-int main( int argc, char *argv[] ){
+
+int
+main( int argc, char *argv[] )
+{
     istream *br;
     ifstream infile;
     
-
-    
     bool verbose = false;
     br = &cin;
-
+    
     for( int i=1; i<argc; i++ ) {
         if( strcmp(argv[i], "-v") == 0 )
             verbose = true;
@@ -350,30 +616,56 @@ int main( int argc, char *argv[] ){
     }
     
     TokenEngine e(br, verbose);
+    
     PTree *tree = Html(e);
-    int countLeaves=tree->countLeaves();
-    if (countLeaves==5) {
-        countLeaves++;
-    }
-    //For the below little code I have remembered how many STAG there were without its ETAG
-    //and atlast after reading the inpur code. It will print Expecting HTML end tag that many times.
-    if (StartCTR>0) {
-        for (int i=0; i<StartCTR; i++) {
-            parseError("Expecting HTML end tag for its start tag");
-        }
-    }
-    //If there were more ETAG then STAG then # of ETAG- # of STAG  = # of ETAG that are missing STAG
-    if (StartCTR<0) {
-        for (int i=0; i>StartCTR; i--) {
-            parseError("Error: HTML end tag without its start tag");
-        }
-    }
+
+    /*
+     plan for STAG and ETAG match?:
+     find lone start and endtag
+     make vector for each
+     then print out
+     */
     
-    
+    vector<string> StartList;
+    vector<string> EndList;
+
+    //
+    bool MatchError=false;
     if( tree != 0 && errorCount == 0 ) {
- 
-        cout << "CORRECT " << countLeaves << endl;
+        for (map<string, int>:: iterator i =tracker.begin(); i !=tracker.end(); i++) {
+            while (i->second >0){
+                //parseError("Expecting HTML end tag for its start tag " + i->first);
+                StartList.push_back(i->first);
+                tracker[i->first]--;
+                MatchError=true;
+            }
+            while (i->second<0) {
+                EndList.push_back(i->first);
+                tracker[i->first]++;
+                MatchError=true;
+
+            }
+        
+        }
+        for (int j =0; j<StartList.size(); j++) {
+            cout<< "start tag " << StartList.at(j) << " does not match end tag " << EndList.at(j) << "\n"<<endl;
+        }
     }
 
+    if( tree != 0 && errorCount == 0 && MatchError==false) {
+        cout<< "Maximum nesting depth is " << level << " \n";
+
+        for (map<string, int>:: iterator i =counters.begin(); i !=counters.end(); i++) {
+            cout<< i->first << ": "<< i->second << "\n";
+        }
+        cout << "============================ \n";
+        for (int i =0; i<HTextList.size(); i++) {
+            string s;
+            s=deleteZeroes(HLevelList.at(i));
+            cout<< s<< ": " <<HTextList.at(i) << "\n";
+        }
+    }
+    if( tree && verbose )
+        tree->traverse();
     return 0;
 }

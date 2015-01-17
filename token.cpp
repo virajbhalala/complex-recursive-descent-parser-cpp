@@ -24,8 +24,9 @@ namespace Tokens {
         }
     }
     
-    Token
-    getToken(istream *in, string& lexeme)
+    
+    //Lexer method to identify token (called from main)
+    Token getToken(istream *in, string& lexeme)
     {
         enum LexState { STARTING, INTEXT, INID, INQSTRING, INCOMMENT, INOTHER } lstate = STARTING;
         static int	angleNesting = 0;
@@ -168,7 +169,7 @@ namespace Tokens {
             }
         }
         
-        // special case ... what about end of file?
+        // what about end of file?
         if( lexeme.length() ) {
             switch( lstate ) {
                 case INTEXT:

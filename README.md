@@ -25,8 +25,9 @@ and the rest of it
 
 
 output 1
+```
 start tag title does not match end tag author
-
+```
 
 input 2
 ```
@@ -44,7 +45,7 @@ input 2
 ```
 
 output 2
-
+```
 Maximum nesting depth is 2
 b: 1
 h1: 3
@@ -63,5 +64,37 @@ p: 1
 2.3: along with me   
 2.3.1: anyway 
 3: ??? 
+```
+
+input 3
+```
+<h1> hello <
+```
+
+output 3
+```
+
+Expecting identifier after '<'
+Expecting an HTML end tag for start tag h1
+
+```
+input 4
+```
+<title
+```
+```
+Expecting '>'
+```
+input 5
+```
+  <link rel="icon" type="image/x-icon" href="https://assets-cdn.github.com/favicon.ico">
+  
+```
+output 5
+```
+
+Expecting an HTML end tag for start tag link
+```
 
 
+If you find any errors please email me at vb97 at njit dot edu

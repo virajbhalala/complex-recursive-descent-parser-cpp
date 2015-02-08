@@ -15,11 +15,13 @@ Program is able to skip html comments and white spaces (not inside html text str
 examples
 
 input 1
+```
 <title>this should work</author>
 it is syntactically correct
 <br/>
 <p>this too</p>
 and the rest of it
+```
 
 
 output 1
@@ -27,6 +29,7 @@ start tag title does not match end tag author
 
 
 input 2
+```
 <h1>Hello</h1>
 <p>yeah this is text</p>
 <h2>there</h2>
@@ -38,6 +41,7 @@ input 2
 <h2>along with me <b>this</b></h2>
 <h3>anyway</h3>
 <h1>???</h1>
+```
 
 output 2
 
